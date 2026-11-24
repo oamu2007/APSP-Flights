@@ -1,46 +1,46 @@
-# APSP-Flights evaluation
+# Evaluación de APSP-Flights
 
-The default graph has 150 airports and 6,552 directed edges. Floyd–Warshall agreed with independent Dijkstra on all 22,500 ordered pairs, including identity queries. Every distinct pair was reachable. Each single-airport removal preserved reachability among survivors, although removing PEK lengthened 1,345 routes. The largest shortest-path distance was **20,093.22 km**, between BOG and CGK in both directions.
+El estudio fijo de 150 aeropuertos usa el grafo predeterminado, con 6,552 aristas dirigidas. Floyd–Warshall coincidió con una implementación independiente de Dijkstra en los 22,500 pares ordenados, incluidas las consultas de un aeropuerto a sí mismo. Todos los pares de aeropuertos distintos eran alcanzables. Cada eliminación individual conservó la conectividad entre los aeropuertos restantes, aunque retirar PEK alargó 1,345 rutas. La mayor distancia de camino mínimo fue de **20,093.22 km**, entre BOG y CGK en ambas direcciones.
 
-## Data and graph
+## Datos y grafo
 
-The evaluation uses the bundled `dataset/datos_aeropuertos_validacion.dat` (7,698 rows), `dataset/datos_rutas_validacion.dat` (67,663 rows), and the fixed 150 IATA codes in `dataset/aeropuertos_demo.txt`, in file order. The repository records an October 20, 2026 download. OpenFlights says its route provider stopped updating the route data in June 2014. File checksums, attribution, and license references accompany the bundled data. [Repository data notes](../dataset/README.md) · [OpenFlights data documentation](https://openflights.org/data.php)
+La evaluación utiliza los archivos incluidos `dataset/datos_aeropuertos_validacion.dat` (7,698 filas) y `dataset/datos_rutas_validacion.dat` (67,663 filas) y los 150 códigos IATA fijos de `dataset/aeropuertos_demo.txt`, en el orden del archivo. El repositorio registra una descarga del 20 de octubre de 2026. Según OpenFlights, su proveedor dejó de actualizar los datos de rutas en junio de 2014. Las sumas de verificación, la atribución y las referencias a las licencias acompañan los datos. [Notas sobre los datos en el repositorio](../dataset/README.md) · [Documentación de los datos de OpenFlights](https://openflights.org/data.php)
 
-The demo loader keeps airports with usable IATA codes, IDs, and coordinates. It includes zero-stop route rows whose airport IDs are both selected, excludes self-edges, and collapses duplicate directed connections. It assigns edge weights using Haversine great-circle distance in kilometers and a spherical Earth radius of 6,371 km. The selection starts with MEX and NRT and fills the other 148 places by source-network in-degree plus out-degree, breaking ties by OpenFlights airport ID. That rule favors well-connected airports. Requiring both endpoints to be selected also excludes any path that would use an airport outside the list. [Selection method](../README.md#que-150-aeropuertos-estamos-usando)
+El lector conserva aeropuertos con códigos IATA, identificadores y coordenadas válidos. Incluye filas de vuelos sin escalas cuando ambos identificadores pertenecen a la selección, descarta bucles y elimina conexiones dirigidas duplicadas. Pondera las aristas con la distancia de círculo máximo en kilómetros, calculada con la fórmula de Haversine y un radio terrestre de 6,371 km. La selección comienza con MEX y NRT y completa los otros 148 lugares según la suma de los grados de entrada y salida en la red de origen, con desempate por identificador de aeropuerto de OpenFlights. Esta regla favorece a los aeropuertos más conectados. Exigir que ambos extremos estén seleccionados también excluye cualquier camino que pase por un aeropuerto ajeno a la lista. [Método de selección](../README.md#que-150-aeropuertos-estamos-usando)
 
-| Metric | Result |
+| Métrica | Resultado |
 | --- | ---: |
-| Airports | 150 |
-| Directed edges | 6,552 |
-| Directed density, `6,552 / (150 × 149)` | 29.32% |
-| Directed edges with no reverse edge | 30 |
-| Sum of in-degrees and sum of out-degrees | 6,552 each |
-| Mean in-degree and mean out-degree | 43.68 each |
-| Highest in-degree | AMS, 110 |
-| Highest out-degree | FRA, 110 |
-| Strongly connected components | 1 (150 airports) |
-| Reachable / unreachable ordered pairs, excluding self-pairs | 22,350 / 0 |
-| OpenFlights country or territory labels | 54 |
+| Aeropuertos | 150 |
+| Aristas dirigidas | 6,552 |
+| Densidad dirigida, `6,552 / (150 × 149)` | 29.32% |
+| Aristas dirigidas sin arista inversa | 30 |
+| Sumas de los grados de entrada y de salida | 6,552 cada una |
+| Promedios de los grados de entrada y de salida | 43.68 cada uno |
+| Mayor grado de entrada | AMS, 110 |
+| Mayor grado de salida | FRA, 110 |
+| Componentes fuertemente conexas | 1 (150 aeropuertos) |
+| Pares ordenados alcanzables / inalcanzables, excluidos los pares de un aeropuerto consigo mismo | 22,350 / 0 |
+| Etiquetas de país o territorio de OpenFlights | 54 |
 
-The four most represented labels were United States (28), China (14), United Kingdom (10), and Spain (9). Latitudes ranged from 33.95° S (SYD) to 60.32° N (HEL). Longitudes ranged from 123.18° W (YVR) to 151.18° E (SYD). SCCs were computed by grouping mutually reachable vertices in the Floyd–Warshall matrix. [Graph totals](artifacts/graph_summary.csv) · [Airport degrees and coordinates](artifacts/airport_degrees.csv) · [Component sizes](artifacts/components.csv)
+Las cuatro etiquetas más representadas fueron Estados Unidos (28), China (14), Reino Unido (10) y España (9). Las latitudes abarcaron de 33.95° S (SYD) a 60.32° N (HEL), y las longitudes de 123.18° O (YVR) a 151.18° E (SYD). Las componentes fuertemente conexas se calcularon agrupando los vértices mutuamente alcanzables en la matriz de Floyd–Warshall. [Totales del grafo](artifacts/graph_summary.csv) · [Grados y coordenadas](artifacts/airport_degrees.csv) · [Tamaños de las componentes](artifacts/components.csv)
 
-## Shortest-path correctness
+## Corrección de los caminos mínimos
 
-The Python integration test ran heap-based Dijkstra from each source using the directed edges exported by the demo. It compared reachability and distance with the C++ backend for every destination and verified each reconstructed path's endpoints, directed hops, and sum of weights. Distance checks used an absolute tolerance of `1e-6 km` to account for floating-point arithmetic and JSON serialization at 12 significant digits. All comparisons passed. The 150 diagonal queries returned exact zero and a single airport. The two-airport fixture checks an unreachable MEX → NRT and the reachable reverse direction. The suite also checks asymmetric distances on the default graph.
+La prueba de integración en Python ejecutó Dijkstra con una cola de prioridad desde cada origen, usando las aristas dirigidas que exporta la aplicación. Comparó la alcanzabilidad y la distancia con el programa en C++ para cada destino y verificó los extremos, los tramos dirigidos y la suma de los pesos de cada camino reconstruido. Se aplicó una tolerancia absoluta de `1e-6 km` por la aritmética de punto flotante y la serialización JSON con 12 cifras significativas. Todas las comparaciones pasaron. Las 150 consultas de la diagonal devolvieron exactamente cero y un solo aeropuerto. La prueba con dos aeropuertos comprueba que MEX → NRT es inalcanzable y que el sentido inverso es alcanzable. Las pruebas también comprueban distancias asimétricas en el grafo predeterminado.
 
-The C++ tie fixture verifies that a direct edge survives an exactly equal alternative and that the first equal-cost path found in vertex order is retained. The solver replaces a predecessor only on a strict improvement. The constructor initializes two `V × V` matrices, processes `E` edges, and executes `V³` relaxations. Its time is `Θ(V³ + E)` and its auxiliary space is `Θ(V²)`. A distance query is `Θ(1)` and reconstructing a finite route takes time proportional to the number of airports on it. The independent comparison tests the solver on the loaded graph. The same Python test also recomputes the Haversine weights from exported coordinates.
+La prueba de empates en C++ verifica que una arista directa se conserva ante una alternativa de igual costo y que, entre caminos de igual costo, se conserva el primero encontrado en el orden de los vértices. El algoritmo sustituye un predecesor solo cuando hay una mejora estricta. El constructor inicializa dos matrices de `V × V`, procesa `E` aristas y ejecuta `V³` relajaciones. Su tiempo es `Θ(V³ + E)` y su espacio auxiliar es `Θ(V²)`. Una consulta de distancia cuesta `Θ(1)` y reconstruir un camino finito toma tiempo proporcional a su número de aeropuertos. La comparación independiente se realiza sobre el grafo cargado. La misma prueba en Python recalcula los pesos de Haversine a partir de las coordenadas exportadas.
 
-## Single-airport removal
+## Eliminación de un aeropuerto
 
-For each airport, the analysis deleted the vertex and its incident edges, kept the relative order of survivors, and reran the same Floyd–Warshall constructor. It compared distinct directed pairs with both endpoints surviving. The loss share divides newly unreachable pairs by pairs that were reachable before deletion. The CSV ranks by loss count descending, then by IATA code ascending. Among pairs that stayed reachable, an increase greater than `1e-6 km` counts as a detour. The detour share divides this count by the number still reachable. Mean and maximum detours summarize the increased pairs only. Shares with a zero denominator and detour magnitudes with no increases are blank.
+Para cada aeropuerto, el análisis eliminó el vértice y sus aristas incidentes, conservó el orden relativo de los vértices restantes y volvió a ejecutar el mismo constructor de Floyd–Warshall. Comparó pares dirigidos de aeropuertos distintos cuyos dos extremos permanecían en el grafo. La proporción de pérdida divide los pares que se volvieron inalcanzables entre los que eran alcanzables antes de la eliminación. El CSV ordena por número de pérdidas descendente, con desempate por código IATA ascendente. Entre los pares que siguieron siendo alcanzables, un aumento mayor que `1e-6 km` cuenta como desvío. La proporción de desvíos divide ese total entre el número de pares que siguieron siendo alcanzables. El aumento promedio y máximo se calcula solo para los pares cuya distancia aumentó. Las proporciones con denominador cero y las magnitudes de desvío sin aumentos quedan en blanco.
 
-All 150 removals tied at **0 lost out of 22,052** previously reachable surviving pairs. There were measurable detours in 137 removal scenarios. PEK produced the largest detour count, with **1,345 affected pairs (6.10%)** and a mean increase of 390.25 km among those pairs. GRU produced the largest single increase, **5,052.53 km**, while affecting 14 pairs. The focused directed fixture verifies both reachability loss and distance increases, and a sparse fixture exercises an empty comparison set. [All 150 removal results](artifacts/airport_removal.csv)
+Las 150 eliminaciones empataron con **0 pérdidas de 22,052** pares supervivientes previamente alcanzables. Hubo desvíos medibles en 137 escenarios. PEK registró el mayor número de desvíos, con **1,345 pares afectados (6.10%)** y un aumento promedio de 390.25 km entre esos pares. GRU registró el mayor aumento individual, **5,052.53 km**, y afectó a 14 pares. Una prueba dirigida comprueba la pérdida de alcanzabilidad y los aumentos de distancia, y una prueba con un grafo disperso cubre un conjunto de comparación vacío. [Resultados de las 150 eliminaciones](artifacts/airport_removal.csv)
 
-## Longest shortest paths
+## Caminos mínimos más largos
 
-These are the ten largest finite shortest-path distances between distinct airports. The ranking uses descending full-precision distance and breaks exact ties by ascending source and destination IATA codes. Each distance shown is the sum along the reconstructed route. The first row is the maximum over reachable directed pairs.
+La tabla muestra las diez mayores distancias finitas entre aeropuertos distintos. Se ordenan de mayor a menor usando la distancia con precisión completa, con desempate exacto por código IATA de origen y luego de destino, ambos en orden ascendente. Cada distancia mostrada suma los pesos de la ruta reconstruida. La primera fila es el máximo entre los pares dirigidos alcanzables.
 
-| Rank | Airport sequence | Distance (km) | Hops |
+| Posición | Secuencia de aeropuertos | Distancia (km) | Tramos |
 | ---: | --- | ---: | ---: |
 | 1 | BOG → IAH → NRT → CGK | 20,093.22 | 3 |
 | 2 | CGK → NRT → IAH → BOG | 20,093.22 | 3 |
@@ -53,31 +53,31 @@ These are the ten largest finite shortest-path distances between distinct airpor
 | 9 | BOG → FRA → KUL | 19,084.62 | 2 |
 | 10 | KUL → FRA → BOG | 19,084.62 | 2 |
 
-The longest direct edge was **SYD → DFW, 13,808.18 km**, ranked using the same endpoint tie rule. [Ranked paths](artifacts/longest_shortest_paths.csv) · [Longest direct edge](artifacts/longest_direct_edge.csv)
+La arista directa más larga fue **SYD → DFW, 13,808.18 km**, con el mismo criterio de desempate por extremos. [Clasificación de caminos](artifacts/longest_shortest_paths.csv) · [Arista directa más larga](artifacts/longest_direct_edge.csv)
 
-## Runtime experiment
+## Experimento de tiempo de ejecución
 
-The benchmark used the historical 150-node graph and one deterministic synthetic graph per size. Each synthetic graph samples `round(0.29315436241610737 × V(V−1))` distinct ordered non-self edges uniformly without replacement. It traverses ordered pairs in vertex order and samples using MT19937 seeded with `20261124 + V`, with rejection sampling for bounded draws. Each selected edge receives a uniform integer weight from 1 to 10,000 synthetic km. Historical density is matched up to integer rounding. Synthetic weights and topology have no geographic constraints.
+Se midieron el grafo histórico de 150 nodos y un grafo sintético determinista por tamaño. Cada grafo sintético contiene una muestra uniforme sin reemplazo de `round(0.29315436241610737 × V(V−1))` aristas dirigidas distintas, sin bucles. Se recorren los pares ordenados en orden de vértice y se muestrea con MT19937, con semilla `20261124 + V` y muestreo por rechazo para los sorteos acotados. A cada arista seleccionada se le asigna un peso entero uniforme de 1 a 10,000 km sintéticos. La densidad histórica coincide salvo por el redondeo a un entero. Los pesos y la topología sintéticos carecen de restricciones geográficas.
 
-The benchmark ran sequentially on November 24, 2026, after the parallel evaluation jobs finished. The host was an Intel Core i7-1255U with 12 logical processors visible to the process, running Windows x64 build 26300.10075. The C++17 build used GCC 15.2.0 (MinGW-w64/UCRT), CMake 4.3.1, and Ninja 1.13.2 with `Release` flags `-O3 -DNDEBUG`. Each graph had two untimed warmups and nine measured trials. A monotonic `std::chrono::steady_clock` timed only the solver constructor, including distance and predecessor matrix allocation and initialization, direct-edge insertion, and relaxation. Graph preparation, result checksumming, solver destruction, file output, and plotting were outside the timed interval.
+Las mediciones se ejecutaron secuencialmente el 24 de noviembre de 2026, tras finalizar las tareas paralelas de evaluación. El equipo tenía un Intel Core i7-1255U con 12 procesadores lógicos visibles para el proceso y ejecutaba Windows x64, compilación 26300.10075. La compilación C++17 usó GCC 15.2.0 (MinGW-w64/UCRT), CMake 4.3.1 y Ninja 1.13.2, en modo `Release` con `-O3 -DNDEBUG`. Para cada grafo se hicieron dos calentamientos sin medir y nueve ensayos medidos. Un reloj monótono `std::chrono::steady_clock` midió solo el constructor de Floyd–Warshall, incluida la asignación e inicialización de las matrices de distancias y predecesores, la inserción de aristas directas y la relajación. La preparación del grafo, la suma de verificación de los resultados, la destrucción del objeto, la escritura de archivos y la generación de la gráfica quedaron fuera del intervalo medido.
 
-| Graph | Nodes | Edges | Median (ms) | Min–max (ms) | Sample SD (ms) |
+| Grafo | Nodos | Aristas | Mediana (ms) | Mín.–máx. (ms) | Desv. estándar muestral (ms) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Synthetic | 75 | 1,627 | 0.461 | 0.428–0.518 | 0.035 |
-| Historical | 150 | 6,552 | 2.192 | 2.105–2.525 | 0.138 |
-| Synthetic | 150 | 6,552 | 3.279 | 3.024–3.338 | 0.138 |
-| Synthetic | 250 | 18,249 | 14.080 | 12.679–16.169 | 1.006 |
-| Synthetic | 400 | 46,787 | 47.248 | 46.234–50.497 | 1.260 |
-| Synthetic | 550 | 88,518 | 115.137 | 113.738–122.362 | 3.315 |
-| Synthetic | 750 | 164,679 | 275.461 | 268.372–418.651 | 47.998 |
+| Sintético | 75 | 1,627 | 0.461 | 0.428–0.518 | 0.035 |
+| Histórico | 150 | 6,552 | 2.192 | 2.105–2.525 | 0.138 |
+| Sintético | 150 | 6,552 | 3.279 | 3.024–3.338 | 0.138 |
+| Sintético | 250 | 18,249 | 14.080 | 12.679–16.169 | 1.006 |
+| Sintético | 400 | 46,787 | 47.248 | 46.234–50.497 | 1.260 |
+| Sintético | 550 | 88,518 | 115.137 | 113.738–122.362 | 3.315 |
+| Sintético | 750 | 164,679 | 275.461 | 268.372–418.651 | 47.998 |
 
-![Log–log runtime plot with trials, medians, min–max ranges, and a cubic reference](artifacts/runtime.svg)
+![Gráfica logarítmica en ambos ejes con ensayos, medianas, intervalos de mínimo a máximo y una referencia cúbica](artifacts/runtime.svg)
 
-The cubic reference is `3.2792 ms × (V / 150)³`, anchored at the synthetic 150-node median. The measured synthetic median grew about 598-fold from 75 to 750 nodes across a tenfold increase in graph size. The reference grows 1,000-fold over the same interval. The solver performs `V³` relaxations, while elapsed time also reflects the graph instance, memory and processor behavior, and system load. The two 150-node instances had the same edge count and different medians. The nine 750-node trials had the widest spread. These timings describe one host, build, and graph instance per size. [Trials](artifacts/benchmark_trials.csv) · [Summaries with means and sample standard deviations](artifacts/benchmark_summary.csv)
+La referencia cúbica es `3.2792 ms × (V / 150)³`, normalizada con la mediana del grafo sintético de 150 nodos. La mediana sintética medida aumentó unas 598 veces al multiplicar por diez el número de nodos, de 75 a 750. La referencia aumenta 1,000 veces en el mismo intervalo. El algoritmo ejecuta `V³` relajaciones y el tiempo transcurrido también depende de la instancia del grafo, el comportamiento de la memoria y el procesador y la carga del sistema. Las dos instancias de 150 nodos tenían el mismo número de aristas y distintas medianas. Los nueve ensayos de 750 nodos presentaron la mayor dispersión. Estos tiempos corresponden a un equipo, una compilación y una instancia por tamaño. [Ensayos](artifacts/benchmark_trials.csv) · [Resúmenes con medias y desviaciones estándar muestrales](artifacts/benchmark_summary.csv)
 
-## Reproduction
+## Reproducción
 
-Run from the repository root with a C++17 compiler, CMake 3.20+, Ninja, and Python 3.10+. The evaluation and plot need no additional Python packages. The commands use PowerShell with MinGW. On Linux use `./build/bin/apsp_analysis`, `./build/bin/apsp_benchmark`, and `python3`.
+Ejecuta los comandos desde la raíz del repositorio con un compilador C++17, CMake 3.20+, Ninja y Python 3.10+. La evaluación y la gráfica no requieren paquetes adicionales de Python. Los comandos usan PowerShell con MinGW. En Linux, usa `./build/bin/apsp_analysis`, `./build/bin/apsp_benchmark` y `python3`.
 
 ```powershell
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -90,6 +90,6 @@ py -3 scripts/demo.py --headless --from MEX --to NRT
 py -3 evaluation/plot_runtime.py build/evaluation-run
 ```
 
-CTest passed both targets and Python passed all ten tests on Windows. The headless smoke test returned MEX → LAX → NRT at 11,253.82 km through both Python and the Windows launcher. The optional `py -3 scripts/demo.py --gui-smoke` check also passed with Tkinter. On this host, the six graph CSVs regenerated byte-for-byte from the checked-in inputs. Passing the published timing CSVs to `plot_runtime.py` reproduced the SVG byte-for-byte. A fresh benchmark samples new wall-clock timings. Last-digit differences in geographic distances can arise across math libraries, and the order of nearly equal distances can follow those differences.
+En la verificación original en Windows pasaron las dos pruebas de CTest y las diez pruebas de Python. La comprobación sin interfaz gráfica devolvió MEX → LAX → NRT a 11,253.82 km mediante Python y el iniciador de Windows. También pasó la comprobación opcional de Tkinter `py -3 scripts/demo.py --gui-smoke`. En ese equipo se reprodujeron, byte por byte, los seis CSV del grafo a partir de los datos incluidos. Al pasar a `plot_runtime.py` los CSV de tiempos publicados se reprodujo el SVG byte por byte. Una ejecución nueva del benchmark vuelve a medir los tiempos. Las bibliotecas matemáticas pueden dar distancias geográficas que difieran en los últimos dígitos y esas diferencias pueden cambiar el orden de distancias casi iguales.
 
-The routes describe a historical, hub-heavy induced graph. Schedules, service frequency, capacity, demand, actual flight tracks, and commercial feasibility are outside the model. The removal experiment covers one airport at a time within that graph. Current service resilience and results for other airport selections remain outside this experiment.
+Las rutas describen un grafo inducido histórico con énfasis en aeropuertos muy conectados. El modelo no abarca horarios, frecuencia, capacidad, demanda, trayectorias reales ni viabilidad comercial. El experimento de eliminación retira un aeropuerto a la vez en ese grafo. La resiliencia de los servicios actuales y los resultados de otras selecciones quedan fuera del estudio.
