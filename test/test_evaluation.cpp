@@ -22,6 +22,11 @@ void check_equal_cost_paths() {
 void check_profile_and_removal() {
     apsp::Graph graph;
     graph.airports.resize(5);
+    graph.airports[0].code = "AAA";
+    graph.airports[1].code = "BBB";
+    graph.airports[2].code = "CCC";
+    graph.airports[3].code = "DDD";
+    graph.airports[4].code = "EEE";
     graph.edges = {{0, 1, 1}, {1, 2, 1}, {0, 2, 5}, {3, 1, 1}, {2, 4, 2}, {4, 2, 2}};
     const apsp::FloydWarshall solver(5, graph.edges);
     const auto profile = evaluation::profile(graph, solver);
@@ -31,8 +36,20 @@ void check_profile_and_removal() {
     check(profile.one_way_edges == 4 && profile.degrees[2].in == 3 && profile.degrees[2].out == 1,
           "Wrong directed edge or degree count");
 
-    const auto impact = evaluation::remove_airport(graph, solver, 1);
-    check(impact.baseline_reachable == 6 && impact.lost == 2 && impact.still_reachable == 4,
+    const auto scenario = apsp::make_removal_scenario(graph, solver, 1);
+    check(scenario.graph.airports.size() == 4 && scenario.graph.edges.size() == 3 &&
+          scenario.graph.find("AAA") == 0 && scenario.graph.find("CCC") == 1 &&
+          scenario.graph.find("DDD") == 2 && scenario.graph.find("EEE") == 3,
+          "Deletion preserves surviving airport order and removes incident edges");
+    check(scenario.solver && scenario.solver->distance(0, 3) == 7 &&
+          scenario.solver->path(0, 3) == std::vector<int>({0, 1, 3}),
+          "The scenario solver reconstructs the longer directed route using survivor indices");
+    check(scenario.solver->path(2, 1).empty() && scenario.solver->path(3, 0).empty(),
+          "Deletion loses the route from DDD to CCC and keeps the reverse route from EEE to AAA unreachable");
+
+    const auto& impact = scenario.impact;
+    check(impact.airport == 1 && impact.baseline_reachable == 6 && impact.lost == 2 &&
+          impact.still_reachable == 4,
           "Deletion should lose 3 to 2 and 3 to 4 among six previously reachable surviving pairs");
     check(impact.detoured == 2 && impact.total_detour_km == 6 && impact.max_detour_km == 3,
           "Deletion should add 3 km each to 0 to 2 and 0 to 4");
@@ -41,9 +58,38 @@ void check_profile_and_removal() {
     sparse.airports.resize(3);
     sparse.edges = {{0, 1, 1}};
     const apsp::FloydWarshall sparse_solver(3, sparse.edges);
-    const auto empty = evaluation::remove_airport(sparse, sparse_solver, 1);
+    const auto sparse_scenario = apsp::make_removal_scenario(sparse, sparse_solver, 1);
+    check(sparse_scenario.solver && sparse_scenario.graph.edges.empty() &&
+          sparse_scenario.solver->path(0, 1).empty() && sparse_scenario.solver->path(1, 0).empty() &&
+          sparse_scenario.solver->path(0, 0) == std::vector<int>({0}),
+          "The solver distinguishes unreachable survivor pairs from an identity route");
+    const auto& empty = sparse_scenario.impact;
     check(empty.baseline_reachable == 0 && empty.lost == 0 && empty.still_reachable == 0 &&
-          empty.detoured == 0, "Previously unreachable pairs do not enter the deletion comparison");
+          empty.detoured == 0 && empty.total_detour_km == 0 && empty.max_detour_km == 0,
+          "Previously unreachable pairs do not enter the deletion comparison");
+}
+
+void check_singleton_removal() {
+    apsp::Graph singleton;
+    singleton.airports.resize(1);
+    const apsp::FloydWarshall solver(1, singleton.edges);
+    const auto scenario = apsp::make_removal_scenario(singleton, solver, 0);
+    check(scenario.graph.airports.empty() && scenario.graph.edges.empty() && !scenario.solver,
+          "Deleting the only airport yields an empty graph and no solver");
+    const auto impact = evaluation::remove_airport(singleton, solver, 0);
+    check(impact.airport == 0 && impact.baseline_reachable == 0 && impact.lost == 0 &&
+          impact.still_reachable == 0 && impact.detoured == 0 && impact.total_detour_km == 0 &&
+          impact.max_detour_km == 0, "Removing the only airport leaves no surviving pairs to compare");
+
+    for (const int invalid_index : {-1, 1}) {
+        bool rejected = false;
+        try {
+            apsp::make_removal_scenario(singleton, solver, invalid_index);
+        } catch (const std::out_of_range&) {
+            rejected = true;
+        }
+        check(rejected, "Deletion rejects airport indices outside the graph");
+    }
 }
 
 void check_longest_routes() {
@@ -73,6 +119,7 @@ int main() {
     try {
         check_equal_cost_paths();
         check_profile_and_removal();
+        check_singleton_removal();
         check_longest_routes();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

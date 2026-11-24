@@ -1,6 +1,6 @@
 #pragma once
 
-#include "openflights_loader.hpp"
+#include "airport_removal.hpp"
 #include <optional>
 #include <tuple>
 
@@ -59,59 +59,9 @@ inline NetworkProfile profile(const apsp::Graph& graph, const apsp::FloydWarshal
     return result;
 }
 
-inline constexpr double detour_tolerance_km = 1e-6;
-
-struct RemovalImpact {
-    int airport;
-    int baseline_reachable = 0;
-    int lost = 0;
-    int still_reachable = 0;
-    int detoured = 0;
-    double total_detour_km = 0;
-    double max_detour_km = 0;
-};
-
-inline RemovalImpact remove_airport(const apsp::Graph& graph, const apsp::FloydWarshall& baseline,
-                                    int removed) {
-    const int n = static_cast<int>(graph.airports.size());
-    RemovalImpact impact{removed};
-    if (n == 1) return impact;
-
-    // Preserve relative vertex order when compacting the surviving graph.
-    const auto survivor_index = [removed](int vertex) { return vertex - (vertex > removed); };
-    std::vector<apsp::Edge> surviving_edges;
-    surviving_edges.reserve(graph.edges.size());
-    for (const auto& edge : graph.edges) {
-        if (edge.from == removed || edge.to == removed) continue;
-        surviving_edges.push_back({survivor_index(edge.from), survivor_index(edge.to), edge.km});
-    }
-    const apsp::FloydWarshall reduced(n - 1, surviving_edges);
-    for (int source = 0; source < n; ++source) {
-        if (source == removed) continue;
-        for (int target = 0; target < n; ++target) {
-            if (target == removed || target == source) continue;
-            const double before = baseline.distance(source, target);
-            const double after = reduced.distance(survivor_index(source), survivor_index(target));
-            if (!std::isfinite(before)) {
-                if (std::isfinite(after)) throw std::logic_error("Deletion created reachability");
-                continue;
-            }
-            ++impact.baseline_reachable;
-            if (!std::isfinite(after)) {
-                ++impact.lost;
-                continue;
-            }
-            ++impact.still_reachable;
-            const double increase = after - before;
-            if (increase < -detour_tolerance_km) throw std::logic_error("Deletion shortened a route");
-            if (increase <= detour_tolerance_km) continue;
-            ++impact.detoured;
-            impact.total_detour_km += increase;
-            impact.max_detour_km = std::max(impact.max_detour_km, increase);
-        }
-    }
-    return impact;
-}
+using apsp::detour_tolerance_km;
+using apsp::RemovalImpact;
+using apsp::remove_airport;
 
 inline bool longer_first(const apsp::Graph& graph, const apsp::Edge& a, const apsp::Edge& b) {
     if (a.km != b.km) return a.km > b.km;

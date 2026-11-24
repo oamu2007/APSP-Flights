@@ -1,137 +1,77 @@
-# Demo de rutas aereas con Floyd-Warshall
+# APSP-Flights
 
-Este programa representa aeropuertos como nodos y vuelos directos como conexiones dirigidas. Calcula los caminos de menor distancia acumulada entre todos los pares de aeropuertos seleccionados. Permite consultar esos caminos y verlos en una ventana.
+APSP-Flights finds the shortest routes by total distance through a directed graph of historical OpenFlights connections. The C++17 library loads the graph, assigns Haversine weights in kilometers, and computes all-pairs distances and predecessors with Floyd–Warshall. Python provides the Tkinter window and terminal interface.
 
-El algoritmo y la reconstruccion de rutas estan en C++17. Python solo presenta los resultados. La demo usa datos reales e historicos de OpenFlights. Minimiza kilometros, no precios, tiempo de viaje ni numero de vuelos.
+## Run the application
 
-## Abrir la demo
-
-(Para Windows, si ya tienes el equipo necesario)
-Haz doble clic en `iniciar_demo.cmd` o ejecuta desde esta carpeta:
+On Windows, run the launcher from the checkout or double-click it. It builds the C++ backend with CMake and opens the window. The data is bundled, and the Python interface uses the standard library.
 
 ```powershell
-.\iniciar_demo.cmd
+.\apsp-flights.cmd
+.\apsp-flights.cmd --headless --from TFS --to HER
+.\apsp-flights.cmd --preset expanded --list
 ```
 
-El iniciador compila con CMake y abre la ventana. Los datos ya estan incluidos en `dataset`; no se necesita internet. La interfaz usa Tkinter. No necesita instalar paquetes con pip.
+In the window, select the historical or expanded graph, enter IATA codes, and choose **Find route**. The **Airports** tab filters by code, city, country, or name. The route map uses gray dots for active airports and green arrows for the selected path. It plots longitude and latitude on a schematic and splits connections that cross the 180th meridian.
 
-La ventana tiene dos pestanas:
+<a id="que-150-aeropuertos-estamos-usando"></a>
 
-- **Esquema de la ruta:** puntos grises para los aeropuertos incluidos y lineas verdes para el recorrido consultado. La casilla de conexiones permite ver tambien el resto del grafo.
-- **Aeropuertos incluidos:** lista completa con numero, IATA, ciudad, pais y nombre. Los selectores de origen y destino solo ofrecen aeropuertos de esta lista.
+## Airport selections
 
-Las lineas son un esquema de longitud y latitud, no un mapa con fronteras ni trayectorias reales. Al cruzar el meridiano 180, una conexion se divide entre los bordes del dibujo.
+The default graph uses the 150 codes in `dataset/aeropuertos_demo.txt` in file order. The original selection starts with MEX and NRT, then ranks 148 airports by the sum of distinct directed in- and out-connections, with ties broken by OpenFlights airport ID. Its first ten entries are MEX, NRT, FRA, CDG, AMS, ISL, ATL, ORD, PEK, and MUC. The fixed study uses these inputs and their 6,552 directed edges. [Evaluation report](evaluation/README.md)
 
-## Que 150 aeropuertos estamos usando
+Choose **Expanded (500)** or `--preset expanded` to keep the fixed prefix and add airports ranked by degree in the full usable OpenFlights network. This selection contains 20,001 directed connections. Both graphs are induced subgraphs. The loader includes a connection only when both endpoints belong to the selection. [Selection policy and measured startup cost](dataset/README.md#expanded-airport-selection)
 
-Son exactamente los codigos escritos en `dataset/aeropuertos_demo.txt`. La lista es fija: consultar otro origen o destino no cambia el grafo.
+`--limit N` takes the first N airports of the chosen selection. Use `--limit 2` with the historical preset to load MEX and NRT. MEX → NRT is unreachable in that graph, and the reverse connection is available. The expanded preset supports up to 500 airports. C++ also accepts an alternative `--selection` file containing one unique, usable IATA code per line. An explicit historical limit allows up to 1,000 codes from a custom list.
 
-Para preparar esta lista se conservaron MEX y NRT como los dos primeros, y se completaron los otros 148 lugares con aeropuertos de mayor numero de conexiones dirigidas distintas en los archivos locales: entradas mas salidas, con desempate por ID OpenFlights. No es un ranking de pasajeros ni de trafico actual. Ese orden ya quedo escrito en el archivo y no se recalcula al usar la demo.
+## Airport removal scenarios
 
-Los primeros diez son MEX, NRT, FRA, CDG, AMS, ISL, ATL, ORD, PEK y MUC. Puedes consultar los 150 nombres en la segunda pestana o ejecutar:
+Enter an airport's IATA code and choose **Remove airport**. The application removes the airport and its incident directed edges, then recalculates routes on the surviving graph in the background. The route selectors, airport table, and map update with the scenario. An attempted query with a removed endpoint shows a message, and mutually unreachable surviving airports can still be queried in either direction. Choosing a different airport replaces the current removal using the original selection. **Restore baseline** returns the original airports and routes. Switching presets starts from the new preset's baseline.
+
+The comparison uses ordered pairs of distinct surviving airports. The loss share divides newly unreachable pairs by previously reachable surviving pairs. An increase above `1e-6 km` counts as a detour. The detour share uses the number of pairs still reachable, and the mean and maximum use only increased distances. Headless JSON includes `removed_airport` and `impact`, with `null` for undefined shares or detour magnitudes. The window describes empty comparisons and unchanged distances in its impact summary.
 
 ```powershell
-.\iniciar_demo.cmd --list
+.\apsp-flights.cmd --headless --remove LAX --from MEX --to NRT
+.\apsp-flights.cmd --headless --preset expanded --remove LAX --from MEX --to NRT
 ```
 
-El lector conserva un vuelo solamente si sus dos aeropuertos estan en esa lista. Eso forma un **subgrafo** de OpenFlights: una parte de la red original. Con los archivos actuales, la seleccion predeterminada tiene **150 aeropuertos y 6552 conexiones dirigidas**.
+The equivalent direct C++ command is `build\bin\apsp_demo.exe --remove LAX --from MEX --to NRT`. On Linux, use `./build/bin/apsp_demo`. Run C++ from the repository root so it can resolve the default dataset paths. With `--serve`, the backend emits an initial graph as one JSON line and takes IATA pairs, `--remove IATA`, or `--restore` on standard input. Each removal or restore returns the active graph as JSON. Route requests return the path and distance, with an empty path and `null` distance for unreachable pairs. The Python interface writes the graph and latest successful query to `results/ultima_ruta.json` by default. Use `--output` to change the path.
 
-Puedes editar los codigos, uno por linea, y volver a abrir la demo. Los codigos deben existir en el archivo de aeropuertos y no estar repetidos. Los datos originales `.dat` no se modifican.
+## Example routes on the fixed selection
 
-## Que significa el limite
+| Query | Path | Distance |
+| --- | --- | ---: |
+| MEX → LAX | MEX → LAX | 2,500.00 km |
+| MEX → NRT | MEX → LAX → NRT | 11,253.82 km |
+| NRT → MEX | NRT → MEX | 11,253.73 km |
+| MEX → LHR | MEX → LHR | 8,903.86 km |
+| TFS → HER | TFS → LPA → CMN → TUN → MLA → ATH → HER | 4,318.10 km |
+| MEX → MEX | MEX | 0 km |
 
-The airport selection control also offers an expanded graph. Use `--preset expanded` in either CLI to select it, with `--limit N` for a shorter prefix. See the [selection policy and measured startup cost](dataset/README.md#expanded-airport-selection).
+The solver minimizes kilometers inside the loaded graph. The data reflects historical connections, and the model excludes schedules, prices, capacity, and commercial availability. [Data provenance and license](dataset/README.md)
 
-`--limit N` toma los primeros N aeropuertos del archivo de seleccion. Cuenta origen, destino y posibles intermediarios; no limita el numero de vuelos de una ruta. El limite predeterminado es 150 porque la lista actual contiene 150 codigos. Para usar mas, primero hay que ampliar la lista. La demo admite hasta 1000.
+## Build and test
 
-Por ejemplo:
+Use CMake 3.20+, a C++17 compiler, and Python 3.10+. Tkinter is needed to open the window.
 
-```powershell
-.\iniciar_demo.cmd --limit 2
-```
-
-Carga solamente MEX y NRT, porque son las dos primeras lineas de la lista. MEX -> NRT no tiene conexion directa en estos datos y no puede usar LAX, por lo que no existe ruta en ese grafo. NRT -> MEX si tiene conexion directa. Al cerrar y abrir con el limite predeterminado, LAX vuelve a estar disponible.
-
-Un aeropuerto fuera de la lista, como GKA en esta version, **no esta incluido**; eso es distinto de que dos aeropuertos incluidos no tengan un camino. La demo ahora hace esa distincion y no introduce automaticamente aeropuertos al consultar.
-
-## Como funciona el programa
-
-```text
-Dos archivos OpenFlights + lista del equipo
-                 |
-                 v
-         Grafo dirigido en C++
-                 |
-                 v
-      Floyd-Warshall una sola vez
-        matrices de distancias D
-        y de predecesores Pi
-                 |
-                 v
-  Consultas de origen y destino en C++
-        reconstruccion con Pi
-                 |
-                 v
-     Resultado y dibujo en Python
-```
-
-1. El lector obtiene las coordenadas de los aeropuertos elegidos y las conexiones entre ellos.
-2. Calcula cada peso con Haversine, usando un radio terrestre de 6371 km.
-3. Floyd-Warshall inicializa una matriz D: cero en la diagonal, peso del vuelo cuando hay conexion directa e infinito en los otros casos.
-4. Sus tres ciclos prueban si pasar por cada aeropuerto intermedio k mejora D[i][j]. Cuando mejora, tambien se actualiza Pi[i][j].
-5. Al elegir origen y destino, C++ consulta D y sigue Pi para recuperar los aeropuertos del camino. Python no vuelve a calcular la ruta.
-
-C++ permanece abierto como un proceso local mientras la ventana este abierta. Al iniciar envia el grafo a Python; despues recibe pares IATA y devuelve rutas. Usa lineas JSON para intercambiar datos. Al cerrar la ventana, el proceso termina.
-
-## Casos comprobados
-
-Estos resultados corresponden a la lista y a los archivos actuales, con 150 nodos:
-
-| Consulta | Camino | Distancia aproximada |
-| --- | --- | --- |
-| MEX -> LAX | MEX -> LAX | 2500.00 km |
-| MEX -> NRT | MEX -> LAX -> NRT | 11253.82 km |
-| NRT -> MEX | NRT -> MEX | 11253.73 km |
-| MEX -> LHR | MEX -> LHR | 8903.86 km |
-| TFS -> HER | TFS -> LPA -> CMN -> TUN -> MLA -> ATH -> HER | 4318.10 km |
-| MEX -> MEX | MEX | 0 km |
-
-Una ruta de seis vuelos tiene siete aeropuertos y cinco escalas intermedias. La ruta elegida minimiza kilometros acumulados dentro del grafo seleccionado. No se afirma que sea el mejor itinerario comercial ni el optimo de toda la red global.
-
-Consulta de terminal sin ventana:
-
-```powershell
-.\iniciar_demo.cmd --headless --from TFS --to HER
-```
-
-## Compilar y probar manualmente
-
-Se necesitan CMake 3.20+, un compilador C++17 y Python 3.10+ con Tkinter. En Ubuntu/Debian se pueden instalar con `sudo apt install build-essential cmake python3 python3-tk`.
-
-En Linux, desde esta carpeta:
+On Linux, from the repository root:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
-python3 -m unittest discover -s test -p "test_*.py" -v
+python3 -m unittest discover -s test -p 'test_*.py' -v
 python3 scripts/demo.py
 ```
 
-En Windows con MinGW/Ninja, para una carpeta build nueva:
+On Windows with MinGW and Ninja, use a fresh build directory:
 
 ```powershell
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
+py -3 -m unittest discover -s test -p 'test_*.py' -v
+py -3 scripts/demo.py --gui-smoke
 ```
 
-Para las pruebas Python usa el mismo interprete que la demo. En esta computadora, si no tienes `python` o `py` configurado:
-
-```powershell
-& "$env:USERPROFILE\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest discover -s test -p "test_*.py" -v
-```
-
-El ejecutable C++ tambien funciona sin Python: `build\bin\apsp_demo.exe --from MEX --to NRT` en Windows o `./build/bin/apsp_demo --from MEX --to NRT` en Linux. En Visual Studio puede estar en `build/bin/Release`. Su salida es JSON y se debe ejecutar desde la raiz del proyecto para encontrar dataset.
-
-Esta version se comprobo con MinGW en Windows. CMake y el codigo son compatibles con Linux, pero no se ha ejecutado una comprobacion en Linux. Pasaron la prueba C++, diez pruebas Python y la comprobacion automatica de inicializacion y dibujo de la ventana.
+Use the Python interpreter configured for the application if `py` is unavailable. Visual Studio builds may put the C++ executable in `build/bin/Release`. The original launcher `iniciar_demo.cmd` forwards to `apsp-flights.cmd`. The executable `apsp_demo`, Python entry point `scripts/demo.py`, and selection filename `dataset/aeropuertos_demo.txt` retain their existing names for compatibility.

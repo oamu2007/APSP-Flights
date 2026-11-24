@@ -1,4 +1,4 @@
-"""La ventana muestra resultados; el grafo y Floyd-Warshall viven en C++."""
+"""APSP-Flights interface for the C++ route and scenario engine."""
 import argparse
 import json
 import subprocess
@@ -16,11 +16,11 @@ def binary_path():
         for name in ("apsp_demo.exe", "apsp_demo"):
             if (folder / name).is_file():
                 return folder / name
-    raise RuntimeError("Compila primero con CMake o usa iniciar_demo.cmd")
+    raise RuntimeError("Build with CMake or run apsp-flights.cmd first")
 
 
 class Backend:
-    """Un proceso C++: carga y calcula una vez, luego responde consultas."""
+    """Keep the C++ process and its route matrices alive across requests."""
     def __init__(self, limit=None, preset="historical"):
         command = [str(binary_path()), "--serve", "--preset", preset]
         if limit is not None:
@@ -30,33 +30,60 @@ class Backend:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         try:
-            self.graph = self.read_json()
+            self.set_graph(self.read_json())
         except Exception:
             self.close()
             raise
-        self.codes = {node["code"] for node in self.graph["nodes"]}
+        self.baseline_codes = self.codes
+
+    def set_graph(self, graph):
+        self.graph = graph
+        self.codes = {node["code"] for node in graph["nodes"]}
+        return graph
 
     def read_json(self):
         line = self.process.stdout.readline()
         if not line:
-            raise RuntimeError(self.process.stderr.read().strip() or "El programa C++ se cerro")
+            raise RuntimeError(self.process.stderr.read().strip() or "The C++ backend closed")
         result = json.loads(line)
         if "error" in result:
             raise ValueError(result["error"])
         return result
 
+    def request(self, command):
+        self.process.stdin.write(f"{command}\n")
+        self.process.stdin.flush()
+        return self.read_json()
+
     def query(self, source, target):
         source, target = source.strip().upper(), target.strip().upper()
+        removed = self.graph.get("removed_airport")
+        if removed in (source, target):
+            raise ValueError(f"Airport {removed} is removed in this scenario")
+        if not self.codes:
+            raise ValueError("No airports remain in this scenario")
         for code in (source, target):
             if code not in self.codes:
-                raise ValueError(f"Aeropuerto fuera de la lista seleccionada: {code}")
-        self.process.stdin.write(f"{source} {target}\n")
-        self.process.stdin.flush()
-        return {**self.graph, **self.read_json()}
+                raise ValueError(f"Airport outside the active selection: {code}")
+        return {**self.graph, **self.request(f"{source} {target}")}
+
+    def removed_graph(self, code):
+        code = code.strip().upper()
+        if not code:
+            raise ValueError("Enter an IATA code to remove")
+        if code not in self.baseline_codes:
+            raise ValueError(f"Airport outside the baseline selection: {code}")
+        return self.request(f"--remove {code}")
+
+    def remove(self, code):
+        return self.set_graph(self.removed_graph(code))
+
+    def restore(self):
+        return self.set_graph(self.request("--restore"))
 
     def close(self):
         if self.process.stdin:
-            self.process.stdin.close()  # EOF: el bucle de consultas C++ termina.
+            self.process.stdin.close()  # EOF ends the server command loop.
         try:
             self.process.wait(timeout=2)
         except subprocess.TimeoutExpired:
@@ -69,10 +96,29 @@ class Backend:
 def describe(result):
     path = result["path"]
     if not path:
-        return "No existe ruta entre esos aeropuertos en este grafo."
+        return "No route connects these airports in this direction."
     flights = len(path) - 1
     return (f"{' -> '.join(path)} | {result['distance_km']:,.2f} km | "
-            f"{flights} {'vuelo' if flights == 1 else 'vuelos'}")
+            f"{flights} {'flight' if flights == 1 else 'flights'}")
+
+
+def describe_impact(graph):
+    removed = graph.get("removed_airport")
+    if removed is None:
+        return ""
+    impact = graph["impact"]
+    before, after = impact["baseline_reachable_pairs"], impact["still_reachable_pairs"]
+    if not before:
+        return f"Removed {removed}. No surviving airport pairs were reachable in the baseline."
+    lost = (f"Removed {removed}. Reachability lost for {impact['lost_pairs']:,} of {before:,} "
+            f"previously reachable surviving pairs ({impact['lost_share']:.2%}).")
+    if not after:
+        return lost + " No surviving pairs remain reachable."
+    if not impact["detoured_pairs"]:
+        return lost + f" None of the {after:,} still-reachable pairs have longer routes."
+    return (lost + f" Routes grew longer for {impact['detoured_pairs']:,} of {after:,} still-reachable pairs "
+            f"({impact['detoured_share']:.2%}). Mean increase {impact['mean_detour_km']:,.2f} km, "
+            f"maximum {impact['max_detour_km']:,.2f} km.")
 
 
 def save_result(result, output):
@@ -132,7 +178,7 @@ def draw_graph(canvas, graph, path, show_edges):
 
 
 class DemoWindow:
-    def __init__(self, window, preset, limit, source, target, output):
+    def __init__(self, window, preset, limit, source, target, output, initial_removal=None):
         import tkinter as tk
         from tkinter import ttk
         self.window, self.output = window, output
@@ -143,12 +189,12 @@ class DemoWindow:
         self.closing = False
         self.active_preset = preset
         self.limits = {preset: limit}
-        window.title("Demo estudiantil de rutas aereas - Floyd-Warshall")
+        window.title("APSP-Flights")
         window.geometry("1100x760")
         window.minsize(850, 620)
         frame = ttk.Frame(window, padding=16)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text="Rutas aereas con Floyd-Warshall", font=("Segoe UI", 20)).pack(anchor="w")
+        ttk.Label(frame, text="APSP-Flights", font=("Segoe UI", 20)).pack(anchor="w")
         self.graph_status = tk.StringVar()
         ttk.Label(frame, textvariable=self.graph_status).pack(anchor="w", pady=8)
         controls = ttk.Frame(frame)
@@ -174,6 +220,21 @@ class DemoWindow:
         self.show_edges = tk.BooleanVar(value=False)
         ttk.Checkbutton(controls, text="Show all connections", variable=self.show_edges,
                         command=self.render).grid(row=1, column=4)
+
+        removal_controls = ttk.Frame(frame)
+        removal_controls.pack(fill="x")
+        ttk.Label(removal_controls, text="Airport to remove").pack(side="left", padx=(0, 8))
+        self.removal_code = tk.StringVar()
+        self.removal_box = ttk.Combobox(removal_controls, textvariable=self.removal_code, width=12)
+        self.removal_box.configure(postcommand=lambda: self.filter_codes(
+            self.removal_box, self.removal_code, self.backend.baseline_codes))
+        self.removal_box.pack(side="left", padx=(0, 8))
+        self.remove_button = ttk.Button(removal_controls, text="Remove airport", command=self.remove_airport)
+        self.remove_button.pack(side="left", padx=(0, 8))
+        self.restore_button = ttk.Button(removal_controls, text="Restore baseline", command=self.restore_baseline)
+        self.restore_button.pack(side="left")
+        self.impact_status = tk.StringVar()
+        ttk.Label(frame, textvariable=self.impact_status, wraplength=790).pack(anchor="w", pady=(6, 0))
 
         self.tabs = ttk.Notebook(frame)
         self.tabs.pack(fill="both", expand=True, pady=8)
@@ -207,15 +268,17 @@ class DemoWindow:
         self.canvas.bind("<Configure>", self.render)
         window.bind("<Return>", lambda event: self.calculate())
         window.protocol("WM_DELETE_WINDOW", self.close)
-        self.load(preset)
+        self.load(preset, initial_removal)
 
     def select_preset(self, preset):
         self.preset.set(next(label for label, key in PRESETS.items() if key == preset))
 
-    def filter_codes(self, selector, variable):
-        codes = sorted(self.backend.codes) if self.backend else []
+    def filter_codes(self, selector, variable, codes=None):
+        if codes is None:
+            codes = self.backend.codes
         query = variable.get().strip().upper()
-        selector.configure(values=[code for code in codes if query in code] if query not in codes else codes)
+        matches = codes if query in codes else (code for code in codes if query in code)
+        selector.configure(values=sorted(matches))
 
     def fill_airports(self):
         self.table.delete(*self.table.get_children())
@@ -232,21 +295,28 @@ class DemoWindow:
         count = len(graph["nodes"])
         self.graph_status.set(f"OpenFlights · {count:,} airports · {len(graph['edges']):,} directed connections")
         self.tabs.tab(self.airport_tab, text=f"Airports ({count})")
+        self.removal_code.set(graph.get("removed_airport", ""))
+        self.impact_status.set(describe_impact(graph))
+        self.removal_box.configure(values=sorted(self.backend.baseline_codes))
         self.fill_airports()
         for selector in self.selectors:
             selector.configure(values=sorted(self.backend.codes))
 
     def set_controls(self, busy):
         self.preset_box.configure(state="disabled" if busy else "readonly")
-        state = "disabled" if busy or not self.backend else "normal"
-        self.query_button.configure(state=state)
+        available = not busy and self.backend is not None
+        self.removal_box.configure(state="normal" if available else "disabled")
+        self.remove_button.configure(state="normal" if available else "disabled")
+        can_restore = available and "removed_airport" in self.backend.graph
+        self.restore_button.configure(state="normal" if can_restore else "disabled")
+        route_state = "normal" if available and self.backend.codes else "disabled"
+        self.query_button.configure(state=route_state)
         for selector in self.selectors:
-            selector.configure(state=state)
+            selector.configure(state=route_state)
 
     def submit(self, work, install, message):
         self.set_controls(True)
         self.status.set(message)
-        self.details.set("")
         self.pending = self.worker.submit(work)
         self.window.after(20, self.poll, install)
 
@@ -257,14 +327,15 @@ class DemoWindow:
             self.window.after(20, self.poll, install)
             return
         completed, self.pending = self.pending, None
-        self.set_controls(False)
         try:
             install(completed.result())
         except (RuntimeError, ValueError, OSError) as error:
             self.select_preset(self.active_preset)
             self.status.set(str(error))
+        finally:
+            self.set_controls(False)
 
-    def load(self, preset):
+    def load(self, preset, initial_removal=None):
         if self.pending or (self.backend and self.active_preset == preset):
             return
 
@@ -272,11 +343,36 @@ class DemoWindow:
             if self.backend:
                 self.worker.submit(self.backend.close)
             self.backend, self.active_preset = backend, preset
-            self.set_controls(False)
             self.refresh_graph()
             self.calculate()
 
-        self.submit(lambda: Backend(self.limits.get(preset), preset), install, "Loading airport selection…")
+        def open_backend():
+            backend = Backend(self.limits.get(preset), preset)
+            try:
+                if initial_removal is not None:
+                    backend.remove(initial_removal)
+            except Exception:
+                backend.close()
+                raise
+            return backend
+
+        self.submit(open_backend, install, "Loading airport selection…")
+
+    def install_scenario(self, graph):
+        self.backend.set_graph(graph)
+        self.refresh_graph()
+        self.calculate()
+
+    def remove_airport(self):
+        if self.pending or not self.backend:
+            return
+        code = self.removal_code.get()
+        self.submit(lambda: self.backend.removed_graph(code), self.install_scenario, "Recalculating routes…")
+
+    def restore_baseline(self):
+        if self.pending or not self.backend:
+            return
+        self.submit(lambda: self.backend.request("--restore"), self.install_scenario, "Restoring the baseline…")
 
     def close(self):
         if self.closing:
@@ -328,16 +424,44 @@ def wait_for_gui(window, app):
         raise RuntimeError(f"Window check failed: {app.status.get()}")
 
 
+def check_gui_scenario(window, app):
+    baseline = app.result
+    app.search.set("LAX")
+    if not any(app.table.set(row, "code") == "LAX" for row in app.table.get_children()):
+        raise RuntimeError("Could not find LAX in the airport table")
+    app.removal_code.set("LAX")
+    app.remove_button.invoke()
+    if app.pending is None or not app.query_button.instate(["disabled"]):
+        raise RuntimeError("Route controls stayed active during recalculation")
+    wait_for_gui(window, app)
+    if ("LAX" in app.backend.codes or "LAX" in app.result["path"]
+            or any(app.table.set(row, "code") == "LAX" for row in app.table.get_children())
+            or "LAX" in app.selectors[0].cget("values")
+            or app.result.get("removed_airport") != "LAX" or not app.impact_status.get()):
+        raise RuntimeError("Scenario views still contain the removed airport or lack impact details")
+    app.source.set("LAX")
+    app.query_button.invoke()
+    if app.result is not None or "removed" not in app.status.get():
+        raise RuntimeError("A removed endpoint did not clear the route")
+    app.source.set(baseline["source"])
+    app.restore_button.invoke()
+    wait_for_gui(window, app)
+    if app.result != baseline or not app.table.get_children() or app.impact_status.get():
+        raise RuntimeError("Restore did not return the original graph and route")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Demo estudiantil con lista fija de aeropuertos")
+    parser = argparse.ArgumentParser(description="APSP-Flights searches historical flight routes")
     parser.add_argument("--preset", choices=tuple(PRESETS.values()), default="historical",
                         help="Choose the fixed 150 or the expanded 500 airports")
     parser.add_argument("--limit", type=int, help="Use the first N airports in the chosen selection")
     parser.add_argument("--from", dest="source", default="MEX")
     parser.add_argument("--to", dest="target", default="NRT")
-    parser.add_argument("--headless", action="store_true", help="Consultar sin abrir la ventana")
-    parser.add_argument("--list", action="store_true", help="Mostrar los aeropuertos incluidos sin abrir la ventana")
-    parser.add_argument("--output", type=Path, default=ROOT / "results/ultima_ruta.json")
+    parser.add_argument("--remove", metavar="IATA", help="Remove one airport from the selected baseline")
+    parser.add_argument("--headless", action="store_true", help="Run a route query without opening a window")
+    parser.add_argument("--list", action="store_true", help="List airports in the active selection")
+    parser.add_argument("--output", type=Path, default=ROOT / "results/ultima_ruta.json",
+                        help="Path for the latest successfully queried route and active graph as JSON")
     parser.add_argument("--real", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--gui-smoke", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -346,21 +470,27 @@ def main():
         window = tk.Tk()
         if args.gui_smoke:
             window.withdraw()
-        app = DemoWindow(window, args.preset, args.limit, args.source.upper(), args.target.upper(), args.output)
+        app = DemoWindow(window, args.preset, args.limit, args.source.upper(), args.target.upper(),
+                         args.output, args.remove)
         try:
             if args.gui_smoke:
                 wait_for_gui(window, app)
                 app.search.set(args.source)
                 if len(app.table.get_children()) == 0:
                     raise RuntimeError("Airport search did not find the source")
-                if args.preset == "historical" and args.limit is None:
+                checked = "window, airport search, route and map"
+                if (args.preset == "historical" and args.limit is None and args.remove is None
+                        and (app.result["source"], app.result["target"]) == ("MEX", "NRT")):
+                    check_gui_scenario(window, app)
                     app.select_preset("expanded")
                     app.preset_box.event_generate("<<ComboboxSelected>>")
                     window.update()
                     wait_for_gui(window, app)
                     if len(app.backend.codes) != 500:
                         raise RuntimeError("The expanded graph did not load")
-                print("OK: window, airport search, route, map and selection")
+                    check_gui_scenario(window, app)
+                    checked = "window, airport search, route, map, selection, removal and restore"
+                print(f"OK: {checked}")
             else:
                 window.mainloop()
         finally:
@@ -369,6 +499,8 @@ def main():
 
     backend = Backend(args.limit, args.preset)
     try:
+        if args.remove is not None:
+            backend.remove(args.remove)
         if args.list:
             for index, node in enumerate(backend.graph["nodes"], 1):
                 print(f"{index:3}  {node['code']}  {node['city']}, {node['country']}  |  {node['name']}")
@@ -377,6 +509,8 @@ def main():
             save_result(result, args.output)
             print(describe(result))
             print(f"OpenFlights: {len(result['nodes'])} airports, {len(result['edges'])} directed connections")
+            if "impact" in result:
+                print(describe_impact(result))
     finally:
         backend.close()
 

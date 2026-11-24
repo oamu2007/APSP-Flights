@@ -122,6 +122,103 @@ class DemoTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "supports 1 to 500"):
             demo.Backend(501, "expanded")
 
+    def test_removal_matches_published_impact_and_restores_the_route(self):
+        backend = demo.Backend()
+        try:
+            baseline = backend.query("MEX", "NRT")
+            graph = backend.remove("pek")
+            self.assertEqual(graph["removed_airport"], "PEK")
+            self.assertEqual(graph["nodes"], [node for node in baseline["nodes"] if node["code"] != "PEK"])
+            self.assertEqual(graph["edges"], [edge for edge in baseline["edges"] if "PEK" not in edge[:2]])
+            with (ROOT / "evaluation/artifacts/airport_removal.csv").open(encoding="utf-8", newline="") as data:
+                published = next(row for row in csv.DictReader(data) if row["airport"] == "PEK")
+            for metric, value in graph["impact"].items():
+                self.assertAlmostEqual(value, float(published[metric]), delta=1e-6)
+            with self.assertRaisesRegex(ValueError, "PEK is removed"):
+                backend.query("MEX", "PEK")
+            with self.assertRaisesRegex(ValueError, "outside the baseline"):
+                backend.remove("ZZZ")
+            self.assertEqual(backend.graph, graph)
+
+            # Choosing a different removal replaces the scenario from the same baseline.
+            replacement = backend.remove("LAX")
+            self.assertIn("PEK", backend.codes)
+            self.assertNotIn("LAX", backend.codes)
+            self.assertEqual(len(replacement["nodes"]), 149)
+            detour = backend.query("MEX", "NRT")
+            self.assertNotIn("LAX", detour["path"])
+            self.assertGreater(detour["distance_km"], baseline["distance_km"])
+
+            backend.restore()
+            self.assertEqual(backend.query("MEX", "NRT"), baseline)
+        finally:
+            backend.close()
+
+    def test_removal_with_empty_or_unchanged_comparison(self):
+        for limit in (1, 2):
+            backend = demo.Backend(limit)
+            try:
+                graph = backend.remove("MEX")
+                self.assertEqual(len(graph["nodes"]), limit - 1)
+                self.assertEqual(graph["edges"], [])
+                self.assertEqual(graph["impact"], {
+                    "baseline_reachable_pairs": 0, "lost_pairs": 0, "lost_share": None,
+                    "still_reachable_pairs": 0, "detoured_pairs": 0, "detoured_share": None,
+                    "mean_detour_km": None, "max_detour_km": None,
+                })
+                with self.assertRaisesRegex(ValueError, "MEX is removed"):
+                    backend.query("MEX", "MEX")
+                if limit == 2:
+                    self.assertEqual(backend.query("NRT", "NRT")["distance_km"], 0)
+                backend.restore()
+                self.assertEqual(backend.query("MEX", "MEX")["path"], ["MEX"])
+            finally:
+                backend.close()
+
+        backend = demo.Backend()
+        try:
+            with (ROOT / "evaluation/artifacts/airport_removal.csv").open(encoding="utf-8", newline="") as data:
+                row = next(row for row in csv.DictReader(data) if row["detoured_pairs"] == "0")
+            impact = backend.remove(row["airport"])["impact"]
+            self.assertEqual((impact["lost_share"], impact["detoured_share"]), (0, 0))
+            self.assertIsNone(impact["mean_detour_km"])
+            self.assertIsNone(impact["max_detour_km"])
+        finally:
+            backend.close()
+
+    def test_removal_via_cpp_and_python_entry_points(self):
+        arguments = ["--preset", "expanded", "--remove", "LAX", "--from", "MEX", "--to", "NRT"]
+        direct = subprocess.run([str(demo.binary_path()), *arguments], cwd=ROOT,
+                                capture_output=True, text=True, encoding="utf-8", timeout=20)
+        self.assertEqual(direct.returncode, 0, direct.stderr)
+        scenario = json.loads(direct.stdout)
+        self.assertEqual(len(scenario["nodes"]), 499)
+        self.assertNotIn("LAX", scenario["path"])
+        with tempfile.TemporaryDirectory(dir=ROOT / "build") as folder:
+            output = Path(folder) / "scenario.json"
+            run = subprocess.run([sys.executable, str(ROOT / "scripts/demo.py"), "--headless",
+                                  "--output", str(output), *arguments], cwd=folder,
+                                 capture_output=True, text=True, encoding="utf-8", timeout=20)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertEqual(json.loads(output.read_text(encoding="utf-8")), scenario)
+        direct = subprocess.run([str(demo.binary_path()), "--remove", "MEX"], cwd=ROOT,
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(direct.returncode, 1)
+        self.assertIn("MEX is removed", direct.stderr)
+
+    def test_server_unreachable_route_during_removal_and_restore(self):
+        commands = "MEX NRT\n--remove FRA\nMEX NRT\nFRA MEX\n--restore\nNRT MEX\n"
+        run = subprocess.run([str(demo.binary_path()), "--serve", "--limit", "3"], cwd=ROOT,
+                             input=commands, capture_output=True, text=True, encoding="utf-8", timeout=20)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        initial, first, reduced, unreachable, error, restored, reverse = map(json.loads, run.stdout.splitlines())
+        self.assertEqual(first["path"], ["MEX", "FRA", "NRT"])
+        self.assertEqual(reduced["impact"]["lost_pairs"], 1)
+        self.assertEqual((unreachable["path"], unreachable["distance_km"]), ([], None))
+        self.assertIn("FRA is removed", error["error"])
+        self.assertEqual(restored, initial)
+        self.assertEqual(reverse["path"], ["NRT", "MEX"])
+
     def test_identity(self):
         result = self.backend.query("MEX", "MEX")
         self.assertEqual(result["path"], ["MEX"])
