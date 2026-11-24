@@ -26,6 +26,8 @@ bd373706238134f619c624c606dccc74c05c2582a977c489c81de501735f2390
 
 Las huellas identifican el contenido local, no garantizan por si solas su autenticidad. Si se cambian los archivos o la lista de seleccion, deben volver a comprobarse las rutas del README y las pruebas con respuestas conocidas.
 
+The route checksum above is for the recorded Windows checkout with CRLF line endings. The corresponding Git blob and LF source archive have SHA-256 `2b2a73310b0d8e4c3993042ee1e3827ee3c368730edd23441b4dfd79591839d2`. The airport checksum above is for LF and matches the Git blob. Both line-ending forms produce the same graph.
+
 ## Expanded airport selection
 
 The application defaults to the fixed 150 codes in `aeropuertos_demo.txt`. The expanded preset retains that prefix in file order. It ranks remaining airports with at least one connection by descending in-degree plus out-degree in the full usable OpenFlights network, breaking ties by ascending airport ID. The degree calculation counts distinct zero-stop directed pairs between validated airports and excludes self-edges. The selected graph then keeps only connections with both endpoints in the selected prefix. The larger graph still favors well-connected airports.
@@ -39,3 +41,9 @@ Use `--preset expanded` for 500 airports or add `--limit N` to choose its first 
 | Expanded | 500 | 20,001 | 373.6 ms (345.6–385.1) | 10.68 MiB | 2.86 MiB |
 
 On Windows x64 with an Intel Core i7-1255U and MinGW-w64 GCC 15.2.0, CMake Release (`-O3 -DNDEBUG`), startup was measured from Python starting a new backend to receiving and decoding its initial graph. For each size, one warmup preceded five measured launches. The Windows peak working-set counter covers the C++ process. The matrix column estimates the payload of the two matrices at 12 bytes per vertex pair, before container overhead. The expanded 500-airport configuration stayed below 0.4 seconds and 11 MiB in these samples, so 500 is the supported expanded cap. The Tkinter window loads and switches selections in the background and provides an airport filter by code, city, country or name.
+
+## Small course fixture
+
+`datos_aeropuertos_prueba.csv` and `datos_rutas_prueba.csv` use the fields required by the same OpenFlights loader. `datos_seleccion_prueba.txt` selects AAA, BBB, CCC, DDD and EEE in that order. These synthetic records exercise a quoted airport name, a duplicate directed route, a self-edge, a route with a stop, a missing airport ID and a route to unselected FFF.
+
+The induced edges are AAA → BBB, BBB → CCC, AAA → DDD, DDD → CCC and EEE → BBB. Along the equator, AAA → BBB → CCC spans two degrees, about 222.39 km. Removing BBB redirects AAA → CCC via DDD and leaves EEE unable to reach CCC. Of the four previously reachable ordered pairs with surviving endpoints, one loses reachability and one of the three remaining reachable pairs detours.

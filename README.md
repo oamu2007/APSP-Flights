@@ -14,7 +14,7 @@ On Windows, run the launcher from the checkout or double-click it. It builds the
 
 In the window, select the historical or expanded graph, enter IATA codes, and choose **Find route**. The **Airports** tab filters by code, city, country, or name. The route map uses gray dots for active airports and green arrows for the selected path. It plots longitude and latitude on a schematic and splits connections that cross the 180th meridian.
 
-<a id="que-150-aeropuertos-estamos-usando"></a>
+<a name="que-150-aeropuertos-estamos-usando"></a>
 
 ## Airport selections
 
@@ -75,3 +75,5 @@ py -3 scripts/demo.py --gui-smoke
 ```
 
 Use the Python interpreter configured for the application if `py` is unavailable. Visual Studio builds may put the C++ executable in `build/bin/Release`. The original launcher `iniciar_demo.cmd` forwards to `apsp-flights.cmd`. The executable `apsp_demo`, Python entry point `scripts/demo.py`, and selection filename `dataset/aeropuertos_demo.txt` retain their existing names for compatibility.
+
+See the [ICC006 requirements, test commands, and source inventory](docs/COURSE.md) for course verification.

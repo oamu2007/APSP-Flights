@@ -1,0 +1,6 @@
+1,"Alpha, Main","Alpha City","Test Country","AAA","TAAA",0,0
+2,"Bravo","Bravo City","Test Country","BBB","TBBB",0,1
+3,"Charlie","Charlie City","Test Country","CCC","TCCC",0,2
+4,"Delta","Delta City","Test Country","DDD","TDDD",1,1
+5,"Echo","Echo City","Test Country","EEE","TEEE",-1,1
+6,"Foxtrot","Foxtrot City","Test Country","FFF","TFFF",1,2
