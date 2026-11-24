@@ -40,6 +40,8 @@ Puedes editar los codigos, uno por linea, y volver a abrir la demo. Los codigos 
 
 ## Que significa el limite
 
+The airport selection control also offers an expanded graph. Use `--preset expanded` in either CLI to select it, with `--limit N` for a shorter prefix. See the [selection policy and measured startup cost](dataset/README.md#expanded-airport-selection).
+
 `--limit N` toma los primeros N aeropuertos del archivo de seleccion. Cuenta origen, destino y posibles intermediarios; no limita el numero de vuelos de una ruta. El limite predeterminado es 150 porque la lista actual contiene 150 codigos. Para usar mas, primero hay que ampliar la lista. La demo admite hasta 1000.
 
 Por ejemplo:

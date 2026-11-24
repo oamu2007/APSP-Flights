@@ -1,4 +1,5 @@
 """Integracion con OpenFlights real y comprobacion independiente de rutas."""
+import csv
 import heapq
 import json
 import math
@@ -6,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +59,68 @@ class DemoTests(unittest.TestCase):
         selection = (ROOT/"dataset/aeropuertos_demo.txt").read_text(encoding="utf-8")
         codes = [line.split("#")[0].strip() for line in selection.splitlines()]
         self.assertEqual([node["code"] for node in first["nodes"]], [code for code in codes if code])
+
+    def test_expanded_selection_and_directed_routes(self):
+        dataset = ROOT / "dataset"
+        historical = [node["code"] for node in self.backend.graph["nodes"]]
+        ids, seen = {}, set()
+        with (dataset / "datos_aeropuertos_validacion.dat").open(encoding="utf-8", newline="") as data:
+            for row in csv.reader(data):
+                try:
+                    airport_id, code = int(row[0]), row[4]
+                    lat, lon = float(row[6]), float(row[7])
+                except (ValueError, IndexError):
+                    continue
+                if len(code) == 3 and abs(lat) <= 90 and abs(lon) <= 180:
+                    if airport_id not in ids and code not in seen:
+                        ids[airport_id] = code
+                        seen.add(code)
+        connections = set()
+        with (dataset / "datos_rutas_validacion.dat").open(encoding="utf-8", newline="") as data:
+            for row in csv.reader(data):
+                try:
+                    source, target = int(row[3]), int(row[5])
+                    stops = int(row[7])
+                except (ValueError, IndexError):
+                    continue
+                if len(row) >= 9 and stops == 0 and source != target and source in ids and target in ids:
+                    connections.add((source, target))
+        degrees = Counter(airport for edge in connections for airport in edge)
+        prefix = set(historical)
+        ranked = sorted((airport for airport in degrees if ids[airport] not in prefix),
+                        key=lambda airport: (-degrees[airport], airport))
+        expected = historical + [ids[airport] for airport in ranked[:350]]
+
+        expanded = demo.Backend(preset="expanded")
+        try:
+            self.assertEqual([node["code"] for node in expanded.graph["nodes"]], expected)
+            self.assertEqual(len(expanded.codes), 500)
+            actual_edges = {(source, target) for source, target, _ in expanded.graph["edges"]}
+            self.assertEqual(len(actual_edges), len(expanded.graph["edges"]))
+            self.assertEqual(actual_edges, {(ids[a], ids[b]) for a, b in connections
+                                            if ids[a] in expanded.codes and ids[b] in expanded.codes})
+            adjacency = {code: [] for code in expected}
+            for source, target, km in expanded.graph["edges"]:
+                adjacency[source].append((target, km))
+            for source, target in (("MEX", expected[-1]), (expected[-1], "MEX"),
+                                   (expected[150], "NRT"), ("NRT", expected[150])):
+                result = expanded.query(source, target)
+                with self.subTest(source=source, target=target):
+                    self.assertAlmostEqual(result["distance_km"], dijkstra(adjacency, source)[target], delta=1e-6)
+                    self.assertEqual((result["path"][0], result["path"][-1]), (source, target))
+                    self.assertTrue(all(hop in actual_edges for hop in zip(result["path"], result["path"][1:])))
+        finally:
+            expanded.close()
+
+    def test_expanded_prefix_and_limit(self):
+        expanded = demo.Backend(151, "expanded")
+        try:
+            self.assertEqual(expanded.graph["nodes"][:150], self.backend.graph["nodes"])
+            self.assertEqual(len(expanded.codes), 151)
+        finally:
+            expanded.close()
+        with self.assertRaisesRegex(RuntimeError, "supports 1 to 500"):
+            demo.Backend(501, "expanded")
 
     def test_identity(self):
         result = self.backend.query("MEX", "MEX")

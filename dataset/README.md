@@ -25,3 +25,17 @@ bd373706238134f619c624c606dccc74c05c2582a977c489c81de501735f2390
 ```
 
 Las huellas identifican el contenido local, no garantizan por si solas su autenticidad. Si se cambian los archivos o la lista de seleccion, deben volver a comprobarse las rutas del README y las pruebas con respuestas conocidas.
+
+## Expanded airport selection
+
+The application defaults to the fixed 150 codes in `aeropuertos_demo.txt`. The expanded preset retains that prefix in file order. It ranks remaining airports with at least one connection by descending in-degree plus out-degree in the full usable OpenFlights network, breaking ties by ascending airport ID. The degree calculation counts distinct zero-stop directed pairs between validated airports and excludes self-edges. The selected graph then keeps only connections with both endpoints in the selected prefix. The larger graph still favors well-connected airports.
+
+Use `--preset expanded` for 500 airports or add `--limit N` to choose its first 1–500 airports. The historical evaluation tools continue to use the fixed 150 codes. The integration tests independently reconstruct the expanded order and directed edge set from the two bundled data files.
+
+| Preset | Airports | Directed edges | Median startup (min–max) | Maximum backend peak working set | Matrix entries |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Historical | 150 | 6,552 | 233.6 ms (195.3–249.4) | 7.12 MiB | 0.26 MiB |
+| Expanded prefix | 250 | 11,440 | 330.8 ms (303.2–453.9) | 8.93 MiB | 0.72 MiB |
+| Expanded | 500 | 20,001 | 373.6 ms (345.6–385.1) | 10.68 MiB | 2.86 MiB |
+
+On Windows x64 with an Intel Core i7-1255U and MinGW-w64 GCC 15.2.0, CMake Release (`-O3 -DNDEBUG`), startup was measured from Python starting a new backend to receiving and decoding its initial graph. For each size, one warmup preceded five measured launches. The Windows peak working-set counter covers the C++ process. The matrix column estimates the payload of the two matrices at 12 bytes per vertex pair, before container overhead. The expanded 500-airport configuration stayed below 0.4 seconds and 11 MiB in these samples, so 500 is the supported expanded cap. The Tkinter window loads and switches selections in the background and provides an airport filter by code, city, country or name.

@@ -55,14 +55,14 @@ int main(int argc, char** argv) {
             {"--airports", "dataset/datos_aeropuertos_validacion.dat"},
             {"--routes", "dataset/datos_rutas_validacion.dat"},
             {"--selection", "dataset/aeropuertos_demo.txt"},
-            {"--from", "MEX"}, {"--to", "NRT"}, {"--limit", "150"}};
-        bool serve = false;
+            {"--from", "MEX"}, {"--to", "NRT"}, {"--limit", ""}, {"--preset", "historical"}};
+        bool serve = false, explicit_limit = false;
         for (int i = 1; i < argc; ++i) {
             std::string key = argv[i];
             if (key == "--serve") { serve = true; continue; }
             if (key == "--help") {
-                std::cout << "apsp_demo [--from MEX] [--to NRT] [--limit 150]\n"
-                    << "Usa los primeros N codigos de dataset/aeropuertos_demo.txt.\n"
+                std::cout << "apsp_demo [--from MEX] [--to NRT] [--preset historical|expanded] [--limit N]\n"
+                    << "Historical uses the selection file (default 150); expanded adds airports by degree (default 500).\n"
                     << "--serve mantiene las matrices y recibe pares IATA por la entrada estandar.\n"
                     << "Archivos alternativos: --airports, --routes, --selection.\n";
                 return 0;
@@ -70,9 +70,15 @@ int main(int argc, char** argv) {
             if (!args.count(key) || i + 1 >= argc)
                 throw std::invalid_argument("Argumento invalido: " + key);
             args[key] = argv[++i];
+            if (key == "--limit") explicit_limit = true;
         }
+        const bool expanded = args["--preset"] == "expanded";
+        if (!expanded && args["--preset"] != "historical")
+            throw std::invalid_argument("Unknown airport preset: " + args["--preset"]);
+        const int limit = explicit_limit ? apsp::OpenFlightsLoader::integer(args["--limit"])
+            : (expanded ? apsp::OpenFlightsLoader::expanded_size : apsp::OpenFlightsLoader::historical_size);
         auto graph = apsp::OpenFlightsLoader::load(args["--airports"], args["--routes"],
-            args["--selection"], apsp::OpenFlightsLoader::integer(args["--limit"]));
+            args["--selection"], limit, expanded);
         // Se ejecuta una sola vez. Las consultas siguientes reutilizan D y Pi.
         apsp::FloydWarshall solver(static_cast<int>(graph.airports.size()), graph.edges);
         if (!serve) {
