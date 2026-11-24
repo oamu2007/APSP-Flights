@@ -1,0 +1,13 @@
+metric,value
+raw_airport_rows,7698
+raw_route_rows,67663
+airports,150
+directed_edges,6552
+distinct_ordered_pairs,22350
+directed_density,0.29315436241610737
+directed_edges_without_reverse,30
+reachable_pairs,22350
+unreachable_pairs,0
+reachable_pairs_without_reverse,0
+strongly_connected_components,1
+country_or_territory_labels,54

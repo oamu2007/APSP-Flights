@@ -13,10 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import demo
 
 
-def dijkstra(graph, source, target):
-    adjacency = {node["code"]: [] for node in graph["nodes"]}
-    for a, b, km in graph["edges"]:
-        adjacency[a].append((b, km))
+def dijkstra(adjacency, source):
     distances = {node: math.inf for node in adjacency}
     distances[source] = 0
     pending = [(0, source)]
@@ -28,7 +25,7 @@ def dijkstra(graph, source, target):
             if cost + km < distances[neighbor]:
                 distances[neighbor] = cost + km
                 heapq.heappush(pending, (cost + km, neighbor))
-    return distances[target]
+    return distances
 
 
 class DemoTests(unittest.TestCase):
@@ -91,19 +88,42 @@ class DemoTests(unittest.TestCase):
     def test_weights_and_independent_dijkstra(self):
         graph = self.backend.graph
         nodes = {node["code"]: node for node in graph["nodes"]}
-        weights = {(a,b):km for a,b,km in graph["edges"]}
+        adjacency = {code: [] for code in nodes}
+        weights = {}
         for a, b, km in graph["edges"]:
+            adjacency[a].append((b, km))
+            weights[a, b] = km
             lat1, lat2 = map(math.radians, (nodes[a]["lat"], nodes[b]["lat"]))
             dlon = math.radians(nodes[b]["lon"]-nodes[a]["lon"])
             h = math.sin((lat2-lat1)/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
             expected = 2*6371*math.asin(math.sqrt(max(0, min(1, h))))
             self.assertAlmostEqual(km, expected, places=5)
-        for source, target in (("MEX","NRT"), ("NRT","MEX"), ("MEX","LHR"), ("TFS","HER"), ("MEX","MEX")):
-            with self.subTest(source=source, target=target):
-                result = self.backend.query(source, target)
-                total = sum(weights[a,b] for a,b in zip(result["path"], result["path"][1:]))
-                self.assertAlmostEqual(total, result["distance_km"], places=5)
-                self.assertAlmostEqual(dijkstra(graph, source, target), result["distance_km"], places=5)
+
+        # The C++ JSON protocol rounds weights and distances to 12 significant digits.
+        tolerance_km = 1e-6
+        for source in nodes:
+            expected_distances = dijkstra(adjacency, source)
+            for target, expected in expected_distances.items():
+                with self.subTest(source=source, target=target):
+                    result = self.backend.query(source, target)
+                    distance, path = result["distance_km"], result["path"]
+                    if math.isinf(expected):
+                        self.assertIsNone(distance)
+                        self.assertEqual(path, [])
+                        continue
+                    self.assertIsNotNone(distance)
+                    self.assertTrue(math.isfinite(distance) and distance >= 0)
+                    self.assertAlmostEqual(distance, expected, delta=tolerance_km)
+                    self.assertTrue(path)
+                    self.assertEqual((path[0], path[-1]), (source, target))
+                    if source == target:
+                        self.assertEqual((distance, path), (0, [source]))
+                    hops = list(zip(path, path[1:]))
+                    for hop in hops:
+                        self.assertIn(hop, weights)
+                    self.assertAlmostEqual(
+                        math.fsum(weights[hop] for hop in hops), distance, delta=tolerance_km
+                    )
 
     def test_headless_from_another_directory(self):
         with tempfile.TemporaryDirectory(dir=ROOT/"build") as folder:

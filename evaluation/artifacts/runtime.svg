@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="1000" height="620"
+     role="img" aria-labelledby="title description">
+<title id="title">Floyd–Warshall runtime by graph size</title>
+<desc id="description">Log–log chart of synthetic and historical graph benchmark trials,
+with medians, minimum and maximum trial times, and a cubic reference anchored at 150 synthetic nodes.</desc>
+<style>
+  text { font: 15px 'Segoe UI', Arial, sans-serif; fill: #23364a; }
+  .title { font-size: 29px; font-weight: 700; fill: #10243b; }
+  .label { font-size: 16px; font-weight: 600; }
+  .note { font-size: 13px; fill: #42566a; }
+  .grid { stroke: #dce5ec; }
+  .axis { stroke: #61778c; }
+  .cubic { fill: none; stroke: #6b587d; stroke-width: 2; stroke-dasharray: 7 5; }
+  .synthetic-line { fill: none; stroke: #166f8b; stroke-width: 2; }
+  .synthetic-range { fill: none; stroke: #166f8b; stroke-width: 1.5; }
+  .historical-range { fill: none; stroke: #a3481e; stroke-width: 1.5; }
+  .synthetic-trial { fill: #166f8b; opacity: .55; }
+  .historical-trial { fill: #a3481e; opacity: .55; }
+  .synthetic-median { fill: #166f8b; stroke: white; stroke-width: 1.4; }
+  .historical-median { fill: none; stroke: #a3481e; stroke-width: 2.2; }
+</style>
+<rect width="1000" height="620" fill="white"/>
+<text class="title" x="96" y="51">Floyd–Warshall runtime by graph size</text>
+<text x="96" y="77">Cubic reference: synthetic 150-node median × (n / 150)³</text>
+<path class="grid" d="M 96 437.65 H 944"/>
+<text x="87" y="442.65" text-anchor="end">0.5</text>
+<path class="grid" d="M 96 405.04 H 944"/>
+<text x="87" y="410.04" text-anchor="end">1</text>
+<path class="grid" d="M 96 372.43 H 944"/>
+<text x="87" y="377.43" text-anchor="end">2</text>
+<path class="grid" d="M 96 329.32 H 944"/>
+<text x="87" y="334.32" text-anchor="end">5</text>
+<path class="grid" d="M 96 296.70 H 944"/>
+<text x="87" y="301.70" text-anchor="end">10</text>
+<path class="grid" d="M 96 264.09 H 944"/>
+<text x="87" y="269.09" text-anchor="end">20</text>
+<path class="grid" d="M 96 220.98 H 944"/>
+<text x="87" y="225.98" text-anchor="end">50</text>
+<path class="grid" d="M 96 188.37 H 944"/>
+<text x="87" y="193.37" text-anchor="end">100</text>
+<path class="grid" d="M 96 155.76 H 944"/>
+<text x="87" y="160.76" text-anchor="end">200</text>
+<path class="grid" d="M 96 112.65 H 944"/>
+<text x="87" y="117.65" text-anchor="end">500</text>
+<path class="grid" d="M 116.00 108 V 460"/>
+<text x="116.00" y="483" text-anchor="middle">75</text>
+<path class="grid" d="M 359.23 108 V 460"/>
+<text x="359.23" y="483" text-anchor="middle">150</text>
+<path class="grid" d="M 538.49 108 V 460"/>
+<text x="538.49" y="483" text-anchor="middle">250</text>
+<path class="grid" d="M 703.41 108 V 460"/>
+<text x="703.41" y="483" text-anchor="middle">400</text>
+<path class="grid" d="M 815.16 108 V 460"/>
+<text x="815.16" y="483" text-anchor="middle">550</text>
+<path class="grid" d="M 924.00 108 V 460"/>
+<text x="924.00" y="483" text-anchor="middle">750</text>
+<path class="axis" fill="none" d="M 96 108 V 460 H 944"/>
+<text class="label" x="520.0" y="515" text-anchor="middle">Nodes (log scale)</text>
+<text class="label" transform="translate(29 284.0) rotate(-90)" text-anchor="middle">Runtime (ms, log scale)</text>
+<polyline class="cubic" points="116.00,447.00 359.23,349.16 538.49,277.06 703.41,210.72 815.16,165.77 924.00,121.99"/>
+<polyline class="synthetic-line" points="116.00,441.52 359.23,349.16 538.49,280.60 703.41,223.64 815.16,181.74 924.00,140.69"/>
+<circle class="synthetic-trial" cx="108.00" cy="444.13" r="2"/>
+<circle class="synthetic-trial" cx="110.00" cy="444.39" r="2"/>
+<circle class="synthetic-trial" cx="112.00" cy="444.44" r="2"/>
+<circle class="synthetic-trial" cx="114.00" cy="435.97" r="2"/>
+<circle class="synthetic-trial" cx="116.00" cy="441.52" r="2"/>
+<circle class="synthetic-trial" cx="118.00" cy="441.21" r="2"/>
+<circle class="synthetic-trial" cx="120.00" cy="437.31" r="2"/>
+<circle class="synthetic-trial" cx="122.00" cy="437.85" r="2"/>
+<circle class="synthetic-trial" cx="124.00" cy="445.00" r="2"/>
+<path class="synthetic-range" d="M 116.00 435.97 V 445.00 M 112.00 435.97 h 8 M 112.00 445.00 h 8"/>
+<circle class="synthetic-trial" cx="351.23" cy="348.62" r="2"/>
+<circle class="synthetic-trial" cx="353.23" cy="348.47" r="2"/>
+<circle class="synthetic-trial" cx="355.23" cy="349.16" r="2"/>
+<circle class="synthetic-trial" cx="357.23" cy="352.43" r="2"/>
+<circle class="synthetic-trial" cx="359.23" cy="351.83" r="2"/>
+<circle class="synthetic-trial" cx="361.23" cy="349.12" r="2"/>
+<circle class="synthetic-trial" cx="363.23" cy="352.86" r="2"/>
+<circle class="synthetic-trial" cx="365.23" cy="348.33" r="2"/>
+<circle class="synthetic-trial" cx="367.23" cy="352.98" r="2"/>
+<path class="synthetic-range" d="M 359.23 348.33 V 352.98 M 355.23 348.33 h 8 M 355.23 352.98 h 8"/>
+<circle class="synthetic-trial" cx="530.49" cy="284.24" r="2"/>
+<circle class="synthetic-trial" cx="532.49" cy="285.54" r="2"/>
+<circle class="synthetic-trial" cx="534.49" cy="282.30" r="2"/>
+<circle class="synthetic-trial" cx="536.49" cy="279.32" r="2"/>
+<circle class="synthetic-trial" cx="538.49" cy="279.13" r="2"/>
+<circle class="synthetic-trial" cx="540.49" cy="281.56" r="2"/>
+<circle class="synthetic-trial" cx="542.49" cy="274.10" r="2"/>
+<circle class="synthetic-trial" cx="544.49" cy="280.60" r="2"/>
+<circle class="synthetic-trial" cx="546.49" cy="280.50" r="2"/>
+<path class="synthetic-range" d="M 538.49 274.10 V 285.54 M 534.49 274.10 h 8 M 534.49 285.54 h 8"/>
+<circle class="synthetic-trial" cx="695.41" cy="223.92" r="2"/>
+<circle class="synthetic-trial" cx="697.41" cy="223.64" r="2"/>
+<circle class="synthetic-trial" cx="699.41" cy="222.91" r="2"/>
+<circle class="synthetic-trial" cx="701.41" cy="223.41" r="2"/>
+<circle class="synthetic-trial" cx="703.41" cy="223.64" r="2"/>
+<circle class="synthetic-trial" cx="705.41" cy="224.19" r="2"/>
+<circle class="synthetic-trial" cx="707.41" cy="224.66" r="2"/>
+<circle class="synthetic-trial" cx="709.41" cy="220.52" r="2"/>
+<circle class="synthetic-trial" cx="711.41" cy="224.33" r="2"/>
+<path class="synthetic-range" d="M 703.41 220.52 V 224.66 M 699.41 220.52 h 8 M 699.41 224.66 h 8"/>
+<circle class="synthetic-trial" cx="807.16" cy="179.05" r="2"/>
+<circle class="synthetic-trial" cx="809.16" cy="178.87" r="2"/>
+<circle class="synthetic-trial" cx="811.16" cy="181.74" r="2"/>
+<circle class="synthetic-trial" cx="813.16" cy="181.37" r="2"/>
+<circle class="synthetic-trial" cx="815.16" cy="181.88" r="2"/>
+<circle class="synthetic-trial" cx="817.16" cy="182.06" r="2"/>
+<circle class="synthetic-trial" cx="819.16" cy="182.21" r="2"/>
+<circle class="synthetic-trial" cx="821.16" cy="182.31" r="2"/>
+<circle class="synthetic-trial" cx="823.16" cy="181.55" r="2"/>
+<path class="synthetic-range" d="M 815.16 178.87 V 182.31 M 811.16 178.87 h 8 M 811.16 182.31 h 8"/>
+<circle class="synthetic-trial" cx="916.00" cy="140.69" r="2"/>
+<circle class="synthetic-trial" cx="918.00" cy="141.21" r="2"/>
+<circle class="synthetic-trial" cx="920.00" cy="135.37" r="2"/>
+<circle class="synthetic-trial" cx="922.00" cy="139.17" r="2"/>
+<circle class="synthetic-trial" cx="924.00" cy="139.58" r="2"/>
+<circle class="synthetic-trial" cx="926.00" cy="141.08" r="2"/>
+<circle class="synthetic-trial" cx="928.00" cy="141.92" r="2"/>
+<circle class="synthetic-trial" cx="930.00" cy="141.58" r="2"/>
+<circle class="synthetic-trial" cx="932.00" cy="121.00" r="2"/>
+<path class="synthetic-range" d="M 924.00 121.00 V 141.92 M 920.00 121.00 h 8 M 920.00 141.92 h 8"/>
+<circle class="historical-trial" cx="351.23" cy="367.13" r="2"/>
+<circle class="historical-trial" cx="353.23" cy="369.48" r="2"/>
+<circle class="historical-trial" cx="355.23" cy="368.11" r="2"/>
+<circle class="historical-trial" cx="357.23" cy="361.46" r="2"/>
+<circle class="historical-trial" cx="359.23" cy="370.03" r="2"/>
+<circle class="historical-trial" cx="361.23" cy="369.69" r="2"/>
+<circle class="historical-trial" cx="363.23" cy="366.57" r="2"/>
+<circle class="historical-trial" cx="365.23" cy="365.29" r="2"/>
+<circle class="historical-trial" cx="367.23" cy="370.02" r="2"/>
+<path class="historical-range" d="M 359.23 361.46 V 370.03 M 352.23 361.46 h 14 M 352.23 370.03 h 14"/>
+<circle class="synthetic-median" cx="116.00" cy="441.52" r="4.5"/>
+<circle class="synthetic-median" cx="359.23" cy="349.16" r="4.5"/>
+<circle class="synthetic-median" cx="538.49" cy="280.60" r="4.5"/>
+<circle class="synthetic-median" cx="703.41" cy="223.64" r="4.5"/>
+<circle class="synthetic-median" cx="815.16" cy="181.74" r="4.5"/>
+<circle class="synthetic-median" cx="924.00" cy="140.69" r="4.5"/>
+<polygon class="historical-median" points="359.23,360.11 367.23,368.11 359.23,376.11 351.23,368.11"/>
+<path class="synthetic-line" d="M 96 554 h 26"/>
+<circle class="synthetic-median" cx="109.00" cy="554.00" r="4.5"/>
+<text x="130" y="559">Synthetic median</text>
+<polygon class="historical-median" points="288.00,546.00 296.00,554.00 288.00,562.00 280.00,554.00"/>
+<text x="306" y="559">Historical median</text>
+<path class="cubic" d="M 471 554 h 31"/>
+<text x="510" y="559">Cubic reference</text>
+<path class="synthetic-range" d="M 670 544 v 20 M 665 544 h 10 M 665 564 h 10"/>
+<text x="685" y="559">Min–max</text>
+<circle class="synthetic-trial" cx="803" cy="552" r="2"/>
+<circle class="historical-trial" cx="811" cy="556" r="2"/>
+<text x="822" y="559">Individual trials</text>
+<text class="note" x="96" y="592">Individual trials are offset horizontally for visibility.</text>
+</svg>
